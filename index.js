@@ -1,14 +1,11 @@
 
-let pixelData = new Map();
+const pixelData                 = new Map();
+const HIDDEN_LAYERS_AMOUNT      = 3;
+const NEURONS_IN_LAYER_AMOUNT   = 4;
+const LEARNING_CONST            = 0.01;
 
-const HIDDEN_LAYERS_AMOUNT     = 3;
-const NEURONS_IN_LAYER_AMOUNT  = 4;
-const LEARNING_CONST           = 0.01;
-
-
-const INPUT_LAYER   = [];
-const HIDDEN_LAYERS = [];
-const OUTPUT_LAYER  = [];
+const HIDDEN_LAYERS     = [];
+const OUTPUT_LAYER      = [];
 
 class Neuron {
 
@@ -19,15 +16,19 @@ class Neuron {
         this.delta = 0;
     }
 
-    getValueAfterActivationFunc() {
-        this.y = (1 / (1 + Math.exp(this.x * (-1)))); 
+    calculateNeuronOutputValue() {
+        this.y = (1 / (1 + Math.exp(this.x * (-1))));
+    }
+
+    calculateNeuronOutputValueInOutputLayer() {
+        this.y = (1 / (1 + Math.exp(this.x * (-1))));
+        this.y = (((255 * this.y) - 25.5) / 0.8);
     }
 
     getDeltaForOutputLayer(correct_answer) {
         this.delta = (this.y - correct_answer) * (this.y * (1 - this.y));
     }
 }
-
 
 window.onload = function () {
     let canvas = document.getElementById('canvas');
@@ -53,7 +54,9 @@ window.onload = function () {
 
     const buttom = document.getElementById('learn');
     buttom.addEventListener('click', () => {
-        make();
+        setInterval(function() {
+            make();
+        }, 1000);
     });
 }
 
@@ -66,9 +69,6 @@ const getRandosWeights = function(amount) {
 }
 
 const initializeNet = function() {
-    //Warstwa wejsciowa
-    INPUT_LAYER.push(new Neuron(getRandosWeights(NEURONS_IN_LAYER_AMOUNT), 0.0, 0.0, 0.0));
-    INPUT_LAYER.push(new Neuron(getRandosWeights(NEURONS_IN_LAYER_AMOUNT), 0.0, 0.0, 0.0));
 
     //Warstwy ukryte
     for (let h = 0; h < HIDDEN_LAYERS_AMOUNT; h++) {
@@ -76,11 +76,11 @@ const initializeNet = function() {
         for (let j = 0; j < NEURONS_IN_LAYER_AMOUNT; j++) {
 
             if (h === 0) {
-                new_layer.push(new Neuron(getRandosWeights(INPUT_LAYER.length), 0.0, 0.0, 0.0));
+                new_layer.push(new Neuron(getRandosWeights(2), 0.0, 0.0, 0.0));
             } else {
                 new_layer.push(new Neuron(getRandosWeights(NEURONS_IN_LAYER_AMOUNT), 0.0, 0.0, 0.0));
             }
-            
+
         }
         HIDDEN_LAYERS.push(new_layer);
     }
@@ -91,26 +91,16 @@ const initializeNet = function() {
     OUTPUT_LAYER.push(new Neuron(getRandosWeights(NEURONS_IN_LAYER_AMOUNT), 0.0, 0.0, 0.0));
 }
 
-
-const getEntryValueForFirstHiddenLayer = function(weights) {
+const getMultiplicationResult = function(weights, values) {
     var result = 0.0;
     for (let i = 0; i < weights.length; i++) {
-        if (INPUT_LAYER[i] !== undefined) {
-            result += weights[i] * INPUT_LAYER[i].x;
-        } else {
-            result += weights[i] * 1;
-        }
-    
+        result += weights[i] * values[i];
     }
-    return result;
+    return (result);
 }
 
-const getEntryValueForHiddenNeuron = function(weights, out_values) {
-    let result = 0.0;
-    for (let i = 0; i < weights.length; i++) {
-        result += weights[i] * out_values[i];
-    }
-    return result;
+const changeValueScope = function(value) {
+    return (((value / 255) * 0.8) + 0.1);
 }
 
 const make = function() {
@@ -118,129 +108,109 @@ const make = function() {
     let canvas = document.getElementById('canvas-result');
     let ctx = canvas.getContext('2d');
 
-    for (let i = 0; i < 1000000; i++) {
+    for (let i = 0; i < 100000; i++) {
 
         //Losowanie punktu x,y
         const x = Math.floor(Math.random() * 401);
         const y = Math.floor(Math.random() * 401);
 
         //Pobranie przykladu i prawidlowej odpowiedzi z oryginalnego obrazka
-        const dataFromWiadomo = pixelData.get(`${x}|${y}`);
+        const correct_RGB = pixelData.get(`${x}|${y}`);
 
-        //Przejscie sieci w przod 
-
-        //Dla warstwy wejsciowej:
-        //Neuron x
-        INPUT_LAYER[0].x = x;
-        INPUT_LAYER[0].y = x;
-
-        //Neuron y
-        INPUT_LAYER[1].x = y;
-        INPUT_LAYER[1].y = y;
+        //Przejscie sieci w przod
+        const refactored_x    = (x / 200) - 1;
+        const refactored_y    = (y / 200) - 1;
+        const INPUT_DATA      = new Array(refactored_x, refactored_y, 1);
 
         //Warstwy ukryte
+        for (let i = 0; i < HIDDEN_LAYERS.length; i++) {
+            if (i === 0) {
+                //Pierwsza warstwa ukryta
+                for (let j = 0; j < NEURONS_IN_LAYER_AMOUNT; j++) {
+                    HIDDEN_LAYERS[i][j].x = getMultiplicationResult(HIDDEN_LAYERS[i][j].weights, INPUT_DATA);
+                    HIDDEN_LAYERS[i][j].calculateNeuronOutputValue();
+                }
+            } else {
+                let previousLayer_in = [];
+                for (let n = 0; n < HIDDEN_LAYERS[i - 1].length; n++) {
+                    previousLayer_in.push(HIDDEN_LAYERS[i - 1][n].x);
+                }
+                previousLayer_in.push(1);
 
-        //Dla pierwszej
-        let tmp_first_hidden_layer_neurons = HIDDEN_LAYERS[0];
-        for (let j = 0; j < NEURONS_IN_LAYER_AMOUNT; j++) {
-            tmp_first_hidden_layer_neurons[j].x = getEntryValueForFirstHiddenLayer(tmp_first_hidden_layer_neurons[j].weights);
-            tmp_first_hidden_layer_neurons[j].getValueAfterActivationFunc();
-        }
-
-        //Dla pozostałych
-        for (let k = 1; k < HIDDEN_LAYERS.length; k++) {
-
-            let previousLayer_in = [];
-            for (let b = 0; b < HIDDEN_LAYERS[k-1].length; b++) {
-                previousLayer_in.push(HIDDEN_LAYERS[k-1][b].x);
-            }
-            previousLayer_in.push(1);
-
-            let tmp_layer  = HIDDEN_LAYERS[k];
-
-            for (let p = 0; p < NEURONS_IN_LAYER_AMOUNT; p++) {
-                tmp_layer[p].x = getEntryValueForHiddenNeuron(tmp_layer[p].weights, previousLayer_in);
-                tmp_layer[p].getValueAfterActivationFunc();
+                for (let p = 0; p < NEURONS_IN_LAYER_AMOUNT; p++) {
+                    HIDDEN_LAYERS[i][p].x = getMultiplicationResult(HIDDEN_LAYERS[i][p].weights, previousLayer_in);
+                    HIDDEN_LAYERS[i][p].calculateNeuronOutputValue();
+                }
             }
         }
 
         //Suma wejscia dla warstwy wyjsciowej
         let lastHiddenLayer_out = [];
-        for (let lh = 0; lh < HIDDEN_LAYERS[HIDDEN_LAYERS_AMOUNT - 1].length; lh++) {
-            lastHiddenLayer_out.push( HIDDEN_LAYERS[HIDDEN_LAYERS_AMOUNT - 1][lh].y);
+        for (let i = 0; i < HIDDEN_LAYERS[HIDDEN_LAYERS_AMOUNT - 1].length; i++) {
+            lastHiddenLayer_out.push( HIDDEN_LAYERS[HIDDEN_LAYERS_AMOUNT - 1][i].y);
         }
         lastHiddenLayer_out.push(1);
 
-        for (let o = 0; o < OUTPUT_LAYER.length; o++) {
-            OUTPUT_LAYER[o].x = getEntryValueForHiddenNeuron(OUTPUT_LAYER[o].weights, lastHiddenLayer_out);
-            OUTPUT_LAYER[o].getValueAfterActivationFunc();
+        for (let i = 0; i < OUTPUT_LAYER.length; i++) {
+            OUTPUT_LAYER[i].x = getMultiplicationResult(OUTPUT_LAYER[i].weights, lastHiddenLayer_out);
+            OUTPUT_LAYER[i].calculateNeuronOutputValueInOutputLayer();
         }
 
         //Przejscie sieci w tył
+        OUTPUT_LAYER[0].getDeltaForOutputLayer(changeValueScope(correct_RGB.R));
+        OUTPUT_LAYER[1].getDeltaForOutputLayer(changeValueScope(correct_RGB.R));
+        OUTPUT_LAYER[2].getDeltaForOutputLayer(changeValueScope(correct_RGB.R));
 
-        OUTPUT_LAYER[0].getDeltaForOutputLayer(dataFromWiadomo.R);
-        OUTPUT_LAYER[1].getDeltaForOutputLayer(dataFromWiadomo.G);
-        OUTPUT_LAYER[2].getDeltaForOutputLayer(dataFromWiadomo.B);
+        for (let i = HIDDEN_LAYERS_AMOUNT - 1; i >= 0; i--) {
+            for (let j = 0; j < NEURONS_IN_LAYER_AMOUNT; j++) {
 
-
-        //TODO: Wagi braz z poprzedniej warstwy czy z obecnej kla ktorej luczymy delte
-        for (let d = HIDDEN_LAYERS_AMOUNT - 1; d >= 0; d--) {
-            for (let ne = 0; ne < NEURONS_IN_LAYER_AMOUNT; ne++) {
-
-                
-                if (d === (HIDDEN_LAYERS_AMOUNT - 1)) {
-                    //Ostatnia ukryta wiec wierzemy z wyjsciowej
-
+                if (i === (HIDDEN_LAYERS_AMOUNT - 1)) {
+                    //Ostatnia ukryta wiec bierzemy z wyjsciowej
                     let tmp_value = 0.0;
-                    for (let f = 0; f < 3; f++) {
-                        tmp_value += OUTPUT_LAYER[f].delta * OUTPUT_LAYER[f].weights[ne];
+                    for (let k = 0; k < 3; k++) {
+                        tmp_value += OUTPUT_LAYER[k].delta * OUTPUT_LAYER[k].weights[j];
                     }
+                    HIDDEN_LAYERS[i][j].delta = tmp_value *  HIDDEN_LAYERS[i][j].y * (1 - HIDDEN_LAYERS[i][j].y);
 
-                    HIDDEN_LAYERS[d][ne].delta = tmp_value *  HIDDEN_LAYERS[d][ne].y * (1 - HIDDEN_LAYERS[d][ne].y);
                 } else {
                     
                     let tmp_value = 0.0;
                     for (let f = 0; f < NEURONS_IN_LAYER_AMOUNT.length; f++) {
-                        tmp_value += HIDDEN_LAYERS[d + 1].delta * HIDDEN_LAYERS[d + 1].weights[ne];
+                        tmp_value += HIDDEN_LAYERS[i + 1].delta * HIDDEN_LAYERS[i + 1].weights[j];
                     }
-
-                    HIDDEN_LAYERS[d][ne].delta = tmp_value *  HIDDEN_LAYERS[d][ne].y * (1 - HIDDEN_LAYERS[d][ne].y);
+                    HIDDEN_LAYERS[i][j].delta = tmp_value *  HIDDEN_LAYERS[i][j].y * (1 - HIDDEN_LAYERS[i][j].y);
                 }
               
             }
         }
 
-
-        //Poprawienie wag ========
-
-        //Dla warstwy wyjsciowej
-        for (let op = 0; op < 3; op++) {
-            for (let we = 0; we < OUTPUT_LAYER[op].weights.length; we++) {
-                OUTPUT_LAYER[op].weights[we] = OUTPUT_LAYER[op].weights[we] - (LEARNING_CONST * OUTPUT_LAYER[op].delta * HIDDEN_LAYERS[HIDDEN_LAYERS_AMOUNT - 1][we].y);
-            }
-        }
-       
-        for (let hd = 0; hd < HIDDEN_LAYERS_AMOUNT; hd++) {
-            if (hd === 0) {
-                //TODO: Obliczanei wag w pierwszej ukrytej
-                // for (let we = 0; we < HIDDEN_LAYERS[hd].weights.length; we++) {
-                //     HIDDEN_LAYERS[hd].weights[we] = HIDDEN_LAYERS[hd].weights[we] - (LEARNING_CONST * HIDDEN_LAYERS[hd].delta * INPUT_LAYER[we].x);
-                // }
-            } else {
-                for (let we = 0; we < HIDDEN_LAYERS[hd].weights.length; we++) {
-                    HIDDEN_LAYERS[hd].weights[we] = HIDDEN_LAYERS[hd].weights[we] - (LEARNING_CONST * HIDDEN_LAYERS[hd].delta * HIDDEN_LAYERS[hd - 1][we].x);
+        for (let i = 0; i < HIDDEN_LAYERS_AMOUNT; i++) {
+            for (let j = 0; j < NEURONS_IN_LAYER_AMOUNT; j++) {
+                for (let k = 0; k < HIDDEN_LAYERS[i][j].weights.length; k++) {
+                    if (i === 0) {
+                        HIDDEN_LAYERS[i][j].weights[k] = HIDDEN_LAYERS[i][j].weights[k] - (LEARNING_CONST * HIDDEN_LAYERS[i][j].delta * INPUT_DATA[k]);
+                    } else {
+                        HIDDEN_LAYERS[i][j].weights[k] = HIDDEN_LAYERS[i][j].weights[k] - (LEARNING_CONST * HIDDEN_LAYERS[i][j].delta * HIDDEN_LAYERS[i - 1][j].y);
+                    }
                 }
             }
         }
-
+    
+        for (let i = 0; i < OUTPUT_LAYER.length; i++) {
+            for (let j = 0; j < OUTPUT_LAYER[i].weights.length; j++) {
+                if (HIDDEN_LAYERS[HIDDEN_LAYERS_AMOUNT - 1][j] !== undefined) {
+                    OUTPUT_LAYER[i].weights[j] = OUTPUT_LAYER[i].weights[j] - (LEARNING_CONST * OUTPUT_LAYER[i].delta * HIDDEN_LAYERS[HIDDEN_LAYERS_AMOUNT - 1][j].y);
+                } else {
+                    OUTPUT_LAYER[i].weights[j] = OUTPUT_LAYER[i].weights[j] - (LEARNING_CONST * OUTPUT_LAYER[i].delta * 1);
+                }
+            }
+        }
 
         ctx.fillStyle = "rgb(" + OUTPUT_LAYER[0].y + ", " + OUTPUT_LAYER[1].y + ", " + OUTPUT_LAYER[2].y + ")";
         ctx.fillRect(x, y, 1, 1);
     }
 
-    console.log(INPUT_LAYER);
     console.log(HIDDEN_LAYERS);
     console.log(OUTPUT_LAYER);
-
 }
 
