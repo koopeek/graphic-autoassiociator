@@ -13,6 +13,7 @@ const pixelData = new Map();
 const HIDDEN_LAYERS_AMOUNT      = 3;
 const NEURONS_IN_LAYER_AMOUNT   = 32;
 const LEARNING_CONST            = 0.1;
+const LEARNING_STEPS            = 300000;
 
 //Arrays for layers
 let INPUT_DATA      = [];
@@ -163,7 +164,7 @@ const runForwardNetworkTransition = function(x, y) {
 }
 
 const learnNeuralNetwork = function() {
-    for (let i = 0; i < 300000; i++) {
+    for (let i = 0; i < LEARNING_STEPS; i++) {
         //Get random x,y from image
         const x = Math.floor(Math.random() * 401);
         const y = Math.floor(Math.random() * 401);
