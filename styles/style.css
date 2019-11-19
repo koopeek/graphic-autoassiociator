@@ -1,0 +1,15 @@
+.wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.wrapper canvas {
+    padding: 0 50px;
+}
+
+.wrapper button {
+    width: 150px;
+    height: 100px;
+    margin: 0 50px;
+}
